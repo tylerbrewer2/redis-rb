@@ -42,8 +42,8 @@ class TestConnection < Minitest::Test
 
     server_thread = Thread.new do
       session = tcp_server.accept
-      io = RubyConnection::BufferedIO.new(session, read_timeout: 1, write_timeout: 1)
-      while command = RESP3.load(io)
+      io = RedisClient::RubyConnection::BufferedIO.new(session, read_timeout: 1, write_timeout: 1)
+      while command = RedisClient::RESP3.load(io)
         case command.first
         when "HELLO"
           session.write("_\r\n")
@@ -58,21 +58,14 @@ class TestConnection < Minitest::Test
       session.close
     end
 
-    target_version "6.0" do
-      with_acl do |username, password|
-        redis = Redis.new(host: "127.0.0.1", port: port, username: username, password: password)
-        assert_equal "PONG", redis.ping
-
-        redis = Redis.new(host: "127.0.0.1", port: port)
-        redis.ping
-        # This shuld raise the redis-rb error but lets get this working first
-        assert_raises RedisClient::ReadOnlyError do
-          redis.set("foo", "bar")
-        end
-
-        refute_predicate redis, :connected?
-      end
+    redis = Redis.new(host: "127.0.0.1", port: port)
+    redis.call("PING")
+    # This shuld raise the redis-rb error but lets get this working first
+    assert_raises RedisClient::ReadOnlyError do
+      redis.call("SET", "foo", "bar")
     end
+
+    refute_predicate redis, :connected?
   ensure
     server_thread&.kill
   end
